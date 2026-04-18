@@ -1,0 +1,751 @@
+// ============================================================================
+// PRISMA SCHEMA FOR ISO 9001 COMPLIANT MANUFACTURING ERP
+// Building Chemical Products Factory - Strict Traceability & QC Gates
+// ============================================================================
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================================================
+// MASTER DATA ENTITIES
+// ============================================================================
+
+model Supplier {
+  id                String   @id @default(uuid())
+  code              String   @unique
+  name              String
+  email             String
+  phone             String
+  address           String
+  taxId             String?
+  certifications    String[] // ISO 9001, etc.
+  paymentTerms      String
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  purchaseOrders    PurchaseOrder[]
+  auditLogs         AuditLog[]
+  
+  @@index([code])
+}
+
+model RawMaterial {
+  id                String   @id @default(uuid())
+  code              String   @unique
+  name              String
+  description       String?
+  category          String   // Chemical, Filler, Additive, etc.
+  unit              String   // kg, L, etc.
+  density           Float?   // For conversion calculations
+  shelfLife         Int?     // days
+  storageCondition  String?  // Temperature, Humidity, Light-sensitive
+  hsCode            String?  // Harmonized System Code
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  batches           RawMaterialBatch[]
+  purchaseOrderItems PurchaseOrderItem[]
+  batchCardFormulas BatchCardFormula[]
+  auditLogs         AuditLog[]
+  
+  @@index([code])
+  @@index([category])
+}
+
+model RawMaterialBatch {
+  id                String   @id @default(uuid())
+  batchNumber       String   @unique
+  materialId        String
+  material          RawMaterial @relation(fields: [materialId], references: [id])
+  
+  // Batch Identity
+  supplierId        String
+  supplier          Supplier @relation(fields: [supplierId], references: [id])
+  manufacturingDate DateTime
+  expiryDate        DateTime
+  certificateOfAnalysis String? // Document reference/URL
+  
+  // Inventory Tracking
+  quantityReceived  Float    // Total received quantity
+  unit              String
+  status            RawMaterialStatus @default(QUARANTINE)
+  
+  // QC Information
+  qcApprovedDate    DateTime?
+  qcApprovedBy      String?  // User ID
+  qcRejectedDate    DateTime?
+  qcRejectionReason String?
+  
+  // Audit Trail
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String
+  
+  // Relations
+  inventoryLots     InventoryLot[]
+  qcTestResults     QCTestResult[]
+  batchCardFormulas BatchCardFormula[]
+  auditLogs         AuditLog[]
+  
+  @@index([batchNumber])
+  @@index([materialId])
+  @@index([status])
+  @@index([expiryDate])
+  @@index([supplierId])
+}
+
+// ============================================================================
+// PROCUREMENT MODULE
+// ============================================================================
+
+model PurchaseOrder {
+  id                String   @id @default(uuid())
+  poNumber          String   @unique
+  supplierId        String
+  supplier          Supplier @relation(fields: [supplierId], references: [id])
+  
+  orderDate         DateTime
+  expectedDeliveryDate DateTime
+  
+  status            PurchaseOrderStatus @default(PENDING)
+  
+  items             PurchaseOrderItem[]
+  goodsReceiptNotes GoodsReceiptNote[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String
+  
+  @@index([poNumber])
+  @@index([supplierId])
+  @@index([status])
+}
+
+model PurchaseOrderItem {
+  id                String   @id @default(uuid())
+  poId              String
+  purchaseOrder     PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  
+  materialId        String
+  material          RawMaterial @relation(fields: [materialId], references: [id])
+  
+  quantity          Float
+  unit              String
+  unitPrice         Float
+  lineTotal         Float
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([poId])
+  @@index([materialId])
+}
+
+model GoodsReceiptNote {
+  id                String   @id @default(uuid())
+  grnNumber         String   @unique
+  poId              String
+  purchaseOrder     PurchaseOrder @relation(fields: [poId], references: [id])
+  
+  receivedDate      DateTime @default(now())
+  
+  items             GRNItem[]
+  
+  // Receipt Status
+  status            GRNStatus @default(RECEIVED
+  receivedBy        String   // User ID
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([grnNumber])
+  @@index([poId])
+  @@index([status])
+}
+
+model GRNItem {
+  id                String   @id @default(uuid())
+  grnId             String
+  grn               GoodsReceiptNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  
+  materialId        String
+  quantityReceived  Float
+  unit              String
+  supplierBatchNo   String?
+  manufacturingDate DateTime
+  expiryDate        DateTime
+  
+  // Links to created Raw Material Batch
+  materialBatchId   String?
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([grnId])
+}
+
+// ============================================================================
+// INVENTORY MANAGEMENT WITH STATE MACHINE
+// ============================================================================
+
+// Core inventory tracking unit
+model InventoryLot {
+  id                String   @id @default(uuid())
+  lotNumber         String   @unique // Globally unique lot number
+  
+  materialBatchId   String
+  materialBatch     RawMaterialBatch @relation(fields: [materialBatchId], references: [id])
+  
+  // State Management (FEFO)
+  state             InventoryState @default(QUARANTINE)
+  quantityOnHand    Float    // Current available quantity
+  quantityReserved  Float    @default(0) // Reserved for production
+  quantityConsumed  Float    @default(0) // Already consumed
+  unit              String
+  
+  // State Change History
+  quarantineDate    DateTime @default(now())
+  approvalDate      DateTime?
+  conversionDate    DateTime?
+  expiryAlertDate   DateTime? // Calculated as expiryDate - 30 days
+  
+  // Traceability
+  grnItemId         String?  // Original receipt
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Batch Card Allocations (FEFO ordering)
+  batchCardAllocations BatchCardAllocation[]
+  
+  // Production Consumption
+  productionLogs    ProductionLog[]
+  
+  @@index([lotNumber])
+  @@index([materialBatchId])
+  @@index([state])
+  @@index([expiryAlertDate])
+  @@unique([materialBatchId, lotNumber])
+}
+
+// ============================================================================
+// QUALITY CONTROL MODULE
+// ============================================================================
+
+model QCTestResult {
+  id                String   @id @default(uuid())
+  testNumber        String   @unique
+  materialBatchId   String
+  materialBatch     RawMaterialBatch @relation(fields: [materialBatchId], references: [id])
+  
+  // Test Details
+  testDate          DateTime @default(now())
+  testParameters    Json     // Flexible schema for different material types
+  results           Json     // Test results and values
+  
+  // Pass/Fail Decision
+  result            QCResult @default(PENDING)
+  certificateUrl    String?
+  notes             String?
+  
+  // Approver Info
+  testedBy          String   // User ID
+  approvedBy        String?  // User ID
+  approvalDate      DateTime?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([materialBatchId])
+  @@index([result])
+  @@index([testDate])
+}
+
+// ============================================================================
+// SALES & PRODUCTION PLANNING
+// ============================================================================
+
+model Product {
+  id                String   @id @default(uuid())
+  code              String   @unique
+  name              String
+  description       String?
+  category          String
+  unit              String   // kg, L, etc.
+  density           Float?
+  shelfLife         Int?     // days
+  
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  salesOrderItems   SalesOrderItem[]
+  batchCards        BatchCard[]
+  finishedGoodsBatches FinishedGoodsBatch[]
+  auditLogs         AuditLog[]
+  
+  @@index([code])
+}
+
+model SalesOrder {
+  id                String   @id @default(uuid())
+  soNumber          String   @unique
+  clientId          String   // Reference to Client/Customer
+  clientName        String
+  
+  orderDate         DateTime @default(now())
+  requiredDeliveryDate DateTime
+  
+  status            SalesOrderStatus @default(PENDING
+  
+  items             SalesOrderItem[]
+  batchCards        BatchCard[]
+  deliveryNotes     DeliveryNote[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String
+  
+  @@index([soNumber])
+  @@index([clientId])
+  @@index([status])
+}
+
+model SalesOrderItem {
+  id                String   @id @default(uuid())
+  soId              String
+  salesOrder        SalesOrder @relation(fields: [soId], references: [id], onDelete: Cascade)
+  
+  productId         String
+  product           Product @relation(fields: [productId], references: [id])
+  
+  quantityOrdered   Float
+  unit              String
+  unitPrice         Float
+  lineTotal         Float
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([soId])
+  @@index([productId])
+}
+
+model BatchCard {
+  id                String   @id @default(uuid())
+  batchCardNumber   String   @unique
+  
+  soId              String
+  salesOrder        SalesOrder @relation(fields: [soId], references: [id])
+  
+  productId         String
+  product           Product @relation(fields: [productId], references: [id])
+  
+  // Production Formula
+  plannedQuantity   Float    // Target FG quantity (kg)
+  unit              String
+  theoreticalYield  Float    // Expected yield %
+  
+  // Status Tracking
+  status            BatchCardStatus @default(PENDING
+  
+  // FEFO Allocation of Raw Materials
+  formulas          BatchCardFormula[]
+  allocations       BatchCardAllocation[]
+  
+  // Production Execution
+  productionExecution ProductionExecution?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String
+  
+  @@index([batchCardNumber])
+  @@index([soId])
+  @@index([status])
+}
+
+model BatchCardFormula {
+  id                String   @id @default(uuid())
+  batchCardId       String
+  batchCard         BatchCard @relation(fields: [batchCardId], references: [id], onDelete: Cascade)
+  
+  materialId        String
+  material          RawMaterial @relation(fields: [materialId], references: [id])
+  
+  // Material Batch (specific lot to use)
+  materialBatchId   String
+  materialBatch     RawMaterialBatch @relation(fields: [materialBatchId], references: [id])
+  
+  // Formula
+  quantity          Float    // Amount of RM needed
+  unit              String
+  scrapPercent      Float    @default(0) // Expected scrap %
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([batchCardId])
+  @@index([materialId])
+}
+
+// Allocation tracking (FEFO ordering)
+model BatchCardAllocation {
+  id                String   @id @default(uuid())
+  batchCardId       String
+  batchCard         BatchCard @relation(fields: [batchCardId], references: [id], onDelete: Cascade)
+  
+  inventoryLotId    String
+  inventoryLot      InventoryLot @relation(fields: [inventoryLotId], references: [id])
+  
+  allocatedQuantity Float
+  consumedQuantity  Float    @default(0)
+  status            AllocationStatus @default(ALLOCATED)
+  
+  allocationOrder   Int      // For FEFO: 1=first to consume, 2=second, etc.
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([batchCardId, inventoryLotId])
+  @@index([batchCardId])
+  @@index([inventoryLotId])
+}
+
+// ============================================================================
+// PRODUCTION & YIELD TRACKING
+// ============================================================================
+
+model ProductionExecution {
+  id                String   @id @default(uuid())
+  batchCardId       String   @unique
+  batchCard         BatchCard @relation(fields: [batchCardId], references: [id])
+  
+  startDate         DateTime?
+  endDate           DateTime?
+  status            ProductionStatus @default(NOT_STARTED)
+  
+  // Yield Information
+  actualQuantityProduced Float?
+  theoreticalQuantity    Float? // Calculated from formula
+  scrapQuantity          Float? @default(0)
+  yieldPercent           Float? // (Actual / Theoretical) * 100
+  
+  // Production Details
+  batchNotes        String?
+  operatorId        String?  // Production operator user ID
+  supervisorId      String?  // Supervisor who approved
+  
+  // QC Status for FG
+  fgQCStatus        FGQCStatus @default(PENDING)
+  
+  productionLogs    ProductionLog[]
+  finishedGoodsBatches FinishedGoodsBatch[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([batchCardId])
+  @@index([status])
+}
+
+model ProductionLog {
+  id                String   @id @default(uuid())
+  productionExecutionId String
+  productionExecution ProductionExecution @relation(fields: [productionExecutionId], references: [id], onDelete: Cascade)
+  
+  inventoryLotId    String
+  inventoryLot      InventoryLot @relation(fields: [inventoryLotId], references: [id])
+  
+  // Consumption
+  quantityConsumed  Float
+  timestamp         DateTime @default(now())
+  loggedBy          String   // User ID
+  
+  @@index([productionExecutionId])
+  @@index([inventoryLotId])
+}
+
+// ============================================================================
+// FINISHED GOODS & INVENTORY
+// ============================================================================
+
+model FinishedGoodsBatch {
+  id                String   @id @default(uuid())
+  fgBatchNumber     String   @unique
+  
+  productionExecutionId String
+  productionExecution ProductionExecution @relation(fields: [productionExecutionId], references: [id])
+  
+  productId         String
+  product           Product @relation(fields: [productId], references: [id])
+  
+  // FG Batch Details
+  quantityProduced  Float
+  unit              String
+  productionDate    DateTime
+  expiryDate        DateTime
+  
+  // State Management
+  state             FinishedGoodsState @default(QUARANTINE)
+  
+  // QC Status
+  qcStatus          FGQCStatus @default(PENDING)
+  qcApprovedDate    DateTime?
+  qcApprovedBy      String?
+  
+  // Inventory Status
+  quantityOnHand    Float
+  quantityAllocated Float    @default(0)
+  quantityDispatched Float   @default(0)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Dispatch
+  deliveryNoteItems DeliveryNoteItem[]
+  storeIssueVouchers StoreIssueVoucher[]
+  certificatesOfAnalysis CertificateOfAnalysis[]
+  
+  @@index([fgBatchNumber])
+  @@index([productId])
+  @@index([state])
+  @@index([qcStatus])
+}
+
+// ============================================================================
+// DISPATCH & DELIVERY
+// ============================================================================
+
+model DeliveryNote {
+  id                String   @id @default(uuid())
+  dnNumber          String   @unique
+  
+  soId              String
+  salesOrder        SalesOrder @relation(fields: [soId], references: [id])
+  
+  deliveryDate      DateTime @default(now())
+  
+  status            DeliveryNoteStatus @default(PENDING)
+  
+  items             DeliveryNoteItem[]
+  storeIssueVouchers StoreIssueVoucher[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String
+  
+  @@index([dnNumber])
+  @@index([soId])
+  @@index([status])
+}
+
+model DeliveryNoteItem {
+  id                String   @id @default(uuid())
+  dnId              String
+  deliveryNote      DeliveryNote @relation(fields: [dnId], references: [id], onDelete: Cascade)
+  
+  fgBatchId         String
+  fgBatch           FinishedGoodsBatch @relation(fields: [fgBatchId], references: [id])
+  
+  quantityDispatched Float
+  unit              String
+  
+  @@index([dnId])
+  @@index([fgBatchId])
+}
+
+model StoreIssueVoucher {
+  id                String   @id @default(uuid())
+  sivNumber         String   @unique
+  
+  dnId              String
+  deliveryNote      DeliveryNote @relation(fields: [dnId], references: [id])
+  
+  fgBatchId         String
+  fgBatch           FinishedGoodsBatch @relation(fields: [fgBatchId], references: [id])
+  
+  quantityIssued    Float
+  unit              String
+  
+  issuedDate        DateTime @default(now())
+  issuedBy          String   // Warehouse keeper user ID
+  approvedBy        String?  // Manager approval
+  approvalDate      DateTime?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([sivNumber])
+  @@index([dnId])
+  @@index([fgBatchId])
+}
+
+// ============================================================================
+// QUALITY & COMPLIANCE
+// ============================================================================
+
+model CertificateOfAnalysis {
+  id                String   @id @default(uuid())
+  coaNumber         String   @unique
+  
+  fgBatchId         String
+  fgBatch           FinishedGoodsBatch @relation(fields: [fgBatchId], references: [id])
+  
+  testDate          DateTime
+  testResults       Json     // Flexible test parameters
+  
+  certifiedBy       String   // QC Officer user ID
+  certificationDate DateTime
+  
+  documentUrl       String?  // PDF/document reference
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([coaNumber])
+  @@index([fgBatchId])
+}
+
+// ============================================================================
+// AUDIT & TRACEABILITY
+// ============================================================================
+
+model AuditLog {
+  id                String   @id @default(uuid())
+  
+  entityType        String   // RawMaterialBatch, InventoryLot, BatchCard, etc.
+  entityId          String
+  
+  action            String   // CREATE, UPDATE, STATE_CHANGE, QC_PASS, etc.
+  
+  oldValues         Json?
+  newValues         Json?
+  
+  userId            String
+  userRole          String?
+  
+  description       String?
+  
+  // Links
+  supplierId        String?
+  supplier          Supplier? @relation(fields: [supplierId], references: [id])
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([entityType])
+  @@index([entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+// ============================================================================
+// ENUMS - STATE MACHINES
+// ============================================================================
+
+enum RawMaterialStatus {
+  QUARANTINE
+  APPROVED
+  ALLOCATED
+  CONSUMED
+  REJECTED
+  EXPIRED
+  SCRAP
+}
+
+enum InventoryState {
+  QUARANTINE       // Received, awaiting QC
+  APPROVED         // QC passed, ready for production
+  ALLOCATED        // Allocated to a batch card
+  CONSUMED         // Used in production
+  REJECTED         // QC failed
+  EXPIRED          // Past expiry date
+}
+
+enum PurchaseOrderStatus {
+  PENDING
+  PARTIALLY_RECEIVED
+  RECEIVED
+  COMPLETED
+  CANCELLED
+}
+
+enum GRNStatus {
+  RECEIVED
+  INSPECTED
+  ACCEPTED
+  REJECTED
+}
+
+enum QCResult {
+  PENDING
+  PASSED
+  FAILED
+  ON_HOLD
+}
+
+enum SalesOrderStatus {
+  PENDING
+  CONFIRMED
+  IN_PRODUCTION
+  READY_TO_DISPATCH
+  PARTIALLY_DISPATCHED
+  COMPLETED
+  CANCELLED
+}
+
+enum BatchCardStatus {
+  PENDING           // Not yet released to production
+  RELEASED          // Approved for production
+  IN_PRODUCTION     // Production started
+  PRODUCTION_COMPLETE // Production finished, awaiting FG QC
+  FG_QC_PENDING     // Awaiting finished goods QC
+  FG_APPROVED       // FG QC passed
+  FG_REJECTED       // FG rejected, batch scrapped
+  READY_TO_DISPATCH
+  COMPLETED
+  CANCELLED
+}
+
+enum AllocationStatus {
+  ALLOCATED
+  PARTIALLY_CONSUMED
+  FULLY_CONSUMED
+  CANCELLED
+}
+
+enum ProductionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+enum FinishedGoodsState {
+  QUARANTINE       // Produced, awaiting QC
+  APPROVED         // QC passed
+  ALLOCATED        // Allocated to delivery
+  DISPATCHED       // Shipped to client
+  RETURNED         // Returned from client
+}
+
+enum FGQCStatus {
+  PENDING
+  IN_TESTING
+  PASSED
+  FAILED
+  ON_HOLD
+}
+
+enum DeliveryNoteStatus {
+  PENDING
+  PARTIALLY_DISPATCHED
+  COMPLETED
+  CANCELLED
+}

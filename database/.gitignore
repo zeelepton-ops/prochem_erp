@@ -1,0 +1,4 @@
+# Migrations directory
+# Keep the migrations but ignore backups
+*.bak
+*.backup

@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bmm-postgres
+    environment:
+      POSTGRES_USER: bmm_user
+      POSTGRES_PASSWORD: secure_password_here
+      POSTGRES_DB: bmm_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - bmm-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bmm_user -d bmm_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bmm-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: bmm_db
+      DB_USER: bmm_user
+      DB_PASSWORD: secure_password_here
+      JWT_SECRET: your_jwt_secret_key_change_in_production
+      FRONTEND_URL: http://localhost:3000
+    ports:
+      - "5000:5000"
+    networks:
+      - bmm-network
+    volumes:
+      - ./backend/src:/app/src
+    command: npm run dev
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bmm-frontend
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:5000/api
+    ports:
+      - "3000:3000"
+    networks:
+      - bmm-network
+    volumes:
+      - ./frontend/src:/app/src
+
+volumes:
+  postgres_data:
+
+networks:
+  bmm-network:
+    driver: bridge
