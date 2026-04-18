@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@services/api';
-import { useAuthStore } from '@context/authStore';
 import { FaPlus, FaEdit, FaTrash, FaArrowLeft, FaSearch } from 'react-icons/fa';
 
 interface Supplier {
@@ -20,13 +19,12 @@ interface Supplier {
   updatedAt?: string;
 }
 
-interface FormData extends Supplier {
+interface FormData extends Omit<Supplier, 'id'> {
   id?: string;
 }
 
 export const SuppliersPage: React.FC = () => {
   const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

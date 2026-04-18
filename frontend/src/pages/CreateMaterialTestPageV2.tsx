@@ -4,14 +4,6 @@ import { apiClient } from '@services/api';
 import { useAuthStore } from '@context/authStore';
 import { FaArrowLeft, FaCheckCircle } from 'react-icons/fa';
 
-interface TestParameter {
-  name: string;
-  value: string | number;
-  unit: string;
-  min?: number;
-  max?: number;
-}
-
 const TEST_TYPES = {
   TENSILE_STRENGTH: {
     name: 'Tensile Strength',

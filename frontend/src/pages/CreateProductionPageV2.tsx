@@ -10,7 +10,6 @@ export const CreateProductionPageV2: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [products, setProducts] = useState<any[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   
   const [form, setForm] = useState({
     batchNumber: `BATCH-${Date.now()}`,
@@ -57,7 +56,6 @@ export const CreateProductionPageV2: React.FC = () => {
     
     if (name === 'productId') {
       const product = products.find((p) => p.id === value);
-      setSelectedProduct(product);
       setForm({ 
         ...form, 
         [name]: value,

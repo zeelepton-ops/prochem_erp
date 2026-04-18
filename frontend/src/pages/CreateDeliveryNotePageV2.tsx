@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@services/api';
 import { useAuthStore } from '@context/authStore';
-import { FaArrowLeft, FaCheckCircle, FaPlus, FaTrash } from 'react-icons/fa';
+import { FaArrowLeft, FaCheckCircle, FaTrash } from 'react-icons/fa';
 
 interface DeliveryItem {
   soItemId: string;
@@ -38,7 +38,6 @@ export const CreateDeliveryNotePageV2: React.FC = () => {
   const [salesOrders, setSalesOrders] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [finishedGoodBatches, setFinishedGoodBatches] = useState<FinishedGoodBatch[]>([]);
-  const [selectedSO, setSelectedSO] = useState<any>(null);
 
   const [form, setForm] = useState({
     dnNumber: `DN-${Date.now()}`,
@@ -108,7 +107,6 @@ export const CreateDeliveryNotePageV2: React.FC = () => {
 
   const handleSOChange = (soId: string) => {
     const so = salesOrders.find((s) => s.id === soId);
-    setSelectedSO(so);
     setForm({
       ...form,
       soId,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaSearch, FaFilter, FaDownload, FaInfo } from 'react-icons/fa';
+import { FaSearch, FaDownload, FaInfo } from 'react-icons/fa';
 
 interface AuditLog {
   id: string;

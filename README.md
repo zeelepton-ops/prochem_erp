@@ -284,14 +284,29 @@ npm run preview       # Preview production build
 - SSL/TLS certificates
 - Environment configuration
 
+### Deployment Options
+
+#### Frontend (Vercel)
+- Use `frontend/vercel.json`
+- Set root path to `frontend`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Set `VITE_API_URL=https://<your-backend-host>/api`
+
+#### Backend (Render)
+- Use `backend/Dockerfile`
+- Deploy as a Docker web service on port `5000`
+- Provide either `DATABASE_URL` or `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
+- Set `JWT_SECRET` for production
+
 ### Deployment Steps
 
 1. Set production environment variables
-2. Update JWT_SECRET and database password
+2. Update `JWT_SECRET` and database credentials
 3. Build Docker images
 4. Run migrations
-5. Start services with Docker Compose
-6. Configure reverse proxy (nginx)
+5. Start services with Docker Compose or host on Render
+6. Configure reverse proxy (nginx) if self-hosted
 7. Set up SSL certificates
 8. Configure backups
 
@@ -299,6 +314,7 @@ npm run preview       # Preview production build
 
 - [Backend README](./backend/README.md) - Backend-specific details
 - [Frontend README](./frontend/README.md) - Frontend-specific details
+- [Deployment Guide](./DEPLOYMENT.md) - Vercel + Render setup
 - [Database Schema](./database/migrations/001_initial_schema.sql) - Database structure
 
 ## 🤝 Support

@@ -1,5 +1,5 @@
 import apiClient from './apiClient';
-import { MaterialTest, Production, DeliveryNote, PaginatedResponse } from '@types/index';
+import type { MaterialTest, Production, DeliveryNote, PaginatedResponse } from '../types';
 
 export const materialTestService = {
   async create(data: Partial<MaterialTest>): Promise<MaterialTest> {

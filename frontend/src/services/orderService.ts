@@ -1,5 +1,5 @@
 import apiClient from './apiClient';
-import { PurchaseOrder, PaginatedResponse } from '@types/index';
+import type { PurchaseOrder, PaginatedResponse } from '../types';
 
 export const purchaseOrderService = {
   async create(data: Partial<PurchaseOrder>): Promise<PurchaseOrder> {
