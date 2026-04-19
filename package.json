@@ -1,6 +1,6 @@
 {
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
