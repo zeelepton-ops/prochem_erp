@@ -1,8 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuthStore } from '@context/authStore';
-import { api } from '@services/api';
-import { FaBox, FaShoppingCart, FaCog, FaTruck, FaFlask, FaChartBar } from 'react-icons/fa';
+import React, { useState } from 'react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Home,
+  Users,
+  FileText,
+  Settings,
+  Search,
+  RefreshCw,
+  Download,
+  User,
+  Truck,
+  Factory,
+  Zap,
+  ArrowUpDown,
+  CheckSquare,
+  Square
+} from 'lucide-react';
 
 interface DashboardStats {
   purchaseOrders: number;
@@ -12,171 +26,229 @@ interface DashboardStats {
   materialTests: number;
 }
 
-export const DashboardPage: React.FC = () => {
-  const user = useAuthStore((state) => state.user);
-  const [stats, setStats] = useState<DashboardStats>({
-    purchaseOrders: 0,
-    salesOrders: 0,
-    production: 0,
-    deliveries: 0,
-    materialTests: 0,
-  });
-  const [loading, setLoading] = useState(true);
+const DashboardPage: React.FC = () => {
+  const [selectedNav, setSelectedNav] = useState('dashboard');
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const [po, so, prod, dn, mt] = await Promise.all([
-          api.procurement.listPurchaseOrders(),
-          api.salesOrders.listSalesOrders(),
-          api.production.listBatchCards(),
-          api.deliveryNotes.listDeliveryNotes(),
-          api.qc.listQCTests(),
-        ]);
+  const navItems = [
+    { id: 'dashboard', label: 'My First List', icon: Home, active: true },
+    { id: 'accounts', label: 'ACCOUNTS', isHeader: true },
+    { id: 'users', label: 'Users', icon: Users },
+    { id: 'reports', label: 'Reports', icon: FileText },
+    { id: 'customers', label: 'CUSTOMERS', isHeader: true },
+    { id: 'clients', label: 'Clients', icon: Users },
+    { id: 'suppliers', label: 'Suppliers', icon: Truck },
+  ];
 
-        setStats({
-          purchaseOrders: po.data?.data?.length || 0,
-          salesOrders: so.data?.data?.length || 0,
-          production: prod.data?.data?.length || 0,
-          deliveries: dn.data?.data?.length || 0,
-          materialTests: mt.data?.data?.length || 0,
-        });
-      } catch (err) {
-        console.error('Failed to fetch stats', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, []);
-
-  const modules = [
+  const dummyData = [
     {
-      title: 'Purchase Orders',
-      icon: FaShoppingCart,
-      count: stats.purchaseOrders,
-      path: '/purchase-orders',
-      color: 'blue',
+      id: 'CR-001',
+      project: 'Chemical Synthesis A',
+      segment: ['Hazardous', 'Organic'],
+      standards: ['ISO 14001', 'EPA Reg'],
+      icon: Truck
     },
     {
-      title: 'Raw Materials',
-      icon: FaBox,
-      count: stats.materialTests,
-      path: '/material-tests',
-      color: 'green',
+      id: 'CR-002',
+      project: 'Polymer Production',
+      segment: ['Industrial', 'Synthetic'],
+      standards: ['OSHA', 'REACH'],
+      icon: Factory
     },
     {
-      title: 'Production',
-      icon: FaCog,
-      count: stats.production,
-      path: '/production',
-      color: 'orange',
-    },
-    {
-      title: 'Sales Orders',
-      icon: FaChartBar,
-      count: stats.salesOrders,
-      path: '/sales-orders',
-      color: 'purple',
-    },
-    {
-      title: 'Deliveries',
-      icon: FaTruck,
-      count: stats.deliveries,
-      path: '/delivery-notes',
-      color: 'red',
-    },
-    {
-      title: 'Audit Logs',
-      icon: FaFlask,
-      count: 0,
-      path: '/audit-logs',
-      color: 'gray',
+      id: 'CR-003',
+      project: 'Biofuel Extraction',
+      segment: ['Renewable', 'Bio-based'],
+      standards: ['ASTM', 'ISO 9001'],
+      icon: Zap
     },
   ];
 
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
+
+  const toggleRow = (id: string) => {
+    setSelectedRows(prev =>
+      prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]
+    );
+  };
+
+  const toggleAllRows = () => {
+    setSelectedRows(prev =>
+      prev.length === dummyData.length ? [] : dummyData.map(row => row.id)
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="flex h-screen bg-gray-50">
+      {/* Dark Sidebar */}
+      <div className="w-64 bg-slate-950 text-white flex flex-col">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-2">
-            Welcome, <span className="font-semibold">{user?.firstName} {user?.lastName}</span> • {user?.role}
-          </p>
+        <div className="p-6 border-b border-slate-800">
+          <div className="flex items-center space-x-3">
+            <Factory className="w-8 h-8 text-purple-400" />
+            <h1 className="text-xl font-bold">Prochem Online Control</h1>
+          </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {modules.map((module) => {
-            const Icon = module.icon;
-            const colorClasses = {
-              blue: 'bg-blue-50 border-blue-200',
-              green: 'bg-green-50 border-green-200',
-              orange: 'bg-orange-50 border-orange-200',
-              purple: 'bg-purple-50 border-purple-200',
-              red: 'bg-red-50 border-red-200',
-              gray: 'bg-gray-50 border-gray-200',
-            };
-
-            const iconColorClasses = {
-              blue: 'text-blue-600',
-              green: 'text-green-600',
-              orange: 'text-orange-600',
-              purple: 'text-purple-600',
-              red: 'text-red-600',
-              gray: 'text-gray-600',
-            };
-
+        {/* Navigation */}
+        <nav className="flex-1 p-4 space-y-1">
+          {navItems.map((item) => {
+            if (item.isHeader) {
+              return (
+                <div key={item.id} className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-6 mb-2">
+                  {item.label}
+                </div>
+              );
+            }
             return (
-              <Link
-                key={module.path}
-                to={module.path}
-                className={`border-2 rounded-xl p-6 hover:shadow-lg transition transform hover:scale-105 cursor-pointer ${
-                  colorClasses[module.color as keyof typeof colorClasses]
+              <button
+                key={item.id}
+                onClick={() => setSelectedNav(item.id)}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  item.active
+                    ? 'bg-purple-600 text-white font-semibold'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm font-medium">{module.title}</p>
-                    <p className="text-3xl font-bold mt-2">
-                      {loading ? '...' : module.count}
-                    </p>
-                  </div>
-                  <Icon
-                    className={`text-4xl ${
-                      iconColorClasses[module.color as keyof typeof iconColorClasses]
-                    }`}
-                  />
-                </div>
-              </Link>
+                <item.icon className="w-5 h-5" />
+                <span className="text-sm">{item.label}</span>
+              </button>
             );
           })}
+        </nav>
+
+        {/* Profile Menu */}
+        <div className="p-4 border-t border-slate-800">
+          <button className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left text-slate-300 hover:bg-slate-800 hover:text-white">
+            <User className="w-5 h-5" />
+            <span className="text-sm">Profile</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-y-auto">
+        {/* Main Header */}
+        <header className="bg-white border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <h2 className="text-lg font-semibold text-gray-900">Dashboard / Active Inventories</h2>
+              <div className="flex -space-x-2">
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium">JD</div>
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-medium">SM</div>
+                <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-xs font-medium">AB</div>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button className="p-2 text-gray-400 hover:text-gray-600">
+                <Search className="w-5 h-5" />
+              </button>
+              <button className="p-2 text-gray-400 hover:text-gray-600">
+                <RefreshCw className="w-5 h-5" />
+              </button>
+              <button className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                <Download className="w-4 h-4" />
+                <span className="text-sm">Export</span>
+              </button>
+              <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                Active
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Filter Bar */}
+        <div className="bg-white border-b border-gray-200 px-6 py-3">
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-600">Filtered by</span>
+            <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+              8 Parameters
+            </span>
+          </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Link
-              to="/purchase-orders/new"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition"
-            >
-              + Create Purchase Order
-            </Link>
-            <Link
-              to="/sales-orders/new"
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition"
-            >
-              + Create Sales Order
-            </Link>
-            <Link
-              to="/material-tests/new"
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition"
-            >
-              + Test Material
-            </Link>
+        {/* Data Table */}
+        <div className="flex-1 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left">
+                    <button onClick={toggleAllRows} className="text-gray-400 hover:text-gray-600">
+                      {selectedRows.length === dummyData.length ? (
+                        <CheckSquare className="w-5 h-5" />
+                      ) : (
+                        <Square className="w-5 h-5" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center space-x-1">
+                      <span>Chemical Release ID</span>
+                      <ArrowUpDown className="w-4 h-4" />
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center space-x-1">
+                      <span>Project Name</span>
+                      <ArrowUpDown className="w-4 h-4" />
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center space-x-1">
+                      <span>Compliance Segment</span>
+                      <ArrowUpDown className="w-4 h-4" />
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center space-x-1">
+                      <span>Compliance Standards</span>
+                      <ArrowUpDown className="w-4 h-4" />
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {dummyData.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <button onClick={() => toggleRow(row.id)} className="text-gray-400 hover:text-gray-600">
+                        {selectedRows.includes(row.id) ? (
+                          <CheckSquare className="w-5 h-5" />
+                        ) : (
+                          <Square className="w-5 h-5" />
+                        )}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{row.id}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{row.project}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {row.segment.map((tag, index) => (
+                          <span key={index} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {row.standards.map((tag, index) => (
+                          <span key={index} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <row.icon className="w-5 h-5 text-gray-400" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
