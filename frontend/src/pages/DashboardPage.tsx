@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
 import {
-  ChevronDown,
-  ChevronRight,
   Home,
   Users,
   FileText,
-  Settings,
   Search,
   RefreshCw,
   Download,
@@ -18,16 +15,8 @@ import {
   Square
 } from 'lucide-react';
 
-interface DashboardStats {
-  purchaseOrders: number;
-  salesOrders: number;
-  production: number;
-  deliveries: number;
-  materialTests: number;
-}
-
 const DashboardPage: React.FC = () => {
-  const [selectedNav, setSelectedNav] = useState('dashboard');
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
 
   const navItems = [
     { id: 'dashboard', label: 'My First List', icon: Home, active: true },
@@ -62,8 +51,6 @@ const DashboardPage: React.FC = () => {
       icon: Zap
     },
   ];
-
-  const [selectedRows, setSelectedRows] = useState<string[]>([]);
 
   const toggleRow = (id: string) => {
     setSelectedRows(prev =>
@@ -102,14 +89,14 @@ const DashboardPage: React.FC = () => {
             return (
               <button
                 key={item.id}
-                onClick={() => setSelectedNav(item.id)}
+                onClick={() => {}}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   item.active
                     ? 'bg-purple-600 text-white font-semibold'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                 }`}
               >
-                <item.icon className="w-5 h-5" />
+                {item.icon && React.createElement(item.icon, { className: 'w-5 h-5' })}
                 <span className="text-sm">{item.label}</span>
               </button>
             );
@@ -255,3 +242,5 @@ const DashboardPage: React.FC = () => {
     </div>
   );
 };
+
+export default DashboardPage;

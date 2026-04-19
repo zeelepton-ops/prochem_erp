@@ -5,7 +5,7 @@ import { ProtectedRoute } from '@components/ProtectedRoute';
 import { HomePage } from '@pages/HomePage';
 import { LoginPage } from '@pages/LoginPage';
 import { RegisterPage } from '@pages/RegisterPage';
-import { DashboardPage } from '@pages/DashboardPage';
+import DashboardPage from '@pages/DashboardPage';
 import { PurchaseOrdersPage } from '@pages/PurchaseOrdersPage';
 import { CreatePurchaseOrderPageV2 } from '@pages/CreatePurchaseOrderPageV2';
 import { SalesOrdersPage } from '@pages/SalesOrdersPage';
