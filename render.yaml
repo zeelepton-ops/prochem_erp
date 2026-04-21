@@ -1,10 +1,10 @@
 services:
   - type: web
     name: bmm-backend
-    env: docker
-    region: oregon
-    branch: main
-    dockerfilePath: backend/Dockerfile
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     plan: starter
     autoDeploy: true
     envVars:
