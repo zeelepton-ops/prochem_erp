@@ -15,7 +15,7 @@ export const corsOptions = {
       'https://prochem-erp.vercel.app',
     ];
 
-    if (allowedOrigins.includes(origin) || origin.endsWith('.loca.lt')) {
+    if (allowedOrigins.includes(origin) || origin.endsWith('.loca.lt') || origin.endsWith('.onrender.com')) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
