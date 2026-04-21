@@ -1,8 +1,13 @@
+import { Request } from 'express';
+
 export interface User {
   id: string;
   email: string;
-  password_hash?: string;
-  name: string;
+  password?: string; // For input only
+  password_hash?: string; // For database
+  name?: string;
+  firstName?: string; // For input only
+  lastName?: string; // For input only
   role: 'admin' | 'manager' | 'operator' | 'viewer';
   department?: string;
   isActive: boolean;
@@ -18,7 +23,7 @@ export interface JwtPayload {
   exp?: number;
 }
 
-export interface RequestWithUser extends Express.Request {
+export interface RequestWithUser extends Request {
   user?: JwtPayload;
 }
 

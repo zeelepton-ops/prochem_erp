@@ -283,6 +283,143 @@ export class InventoryService {
       LEFT JOIN inventory_lots il ON rmb.id = il.material_batch_id
     `);
   }
+
+  async getAllocationDetails(batchCardId: string) {
+    return await db.query(`
+      SELECT 
+        bca.*,
+        il.lot_number,
+        il.quantity_on_hand,
+        il.quantity_reserved,
+        rmb.material_name,
+        rmb.batch_number,
+        rm.unit_of_measure,
+        w.name as warehouse_name,
+        l.name as location_name
+      FROM batch_card_allocations bca
+      LEFT JOIN inventory_lots il ON bca.inventory_lot_id = il.id
+      LEFT JOIN raw_material_batches rmb ON il.material_batch_id = rmb.id
+      LEFT JOIN raw_materials rm ON rmb.material_id = rm.id
+      LEFT JOIN warehouses w ON il.warehouse_id = w.id
+      LEFT JOIN locations l ON il.location_id = l.id
+      WHERE bca.batch_card_id = $1
+      ORDER BY bca.created_at DESC
+    `, [batchCardId]);
+  }
+
+  async getInventoryLotDetail(lotId: string) {
+    return await db.query(`
+      SELECT 
+        il.*,
+        rmb.material_name,
+        rmb.batch_number,
+        rmb.expiry_date,
+        rmb.status as batch_status,
+        rm.unit_of_measure,
+        w.name as warehouse_name,
+        l.name as location_name,
+        s.name as supplier_name
+      FROM inventory_lots il
+      LEFT JOIN raw_material_batches rmb ON il.material_batch_id = rmb.id
+      LEFT JOIN raw_materials rm ON rmb.material_id = rm.id
+      LEFT JOIN warehouses w ON il.warehouse_id = w.id
+      LEFT JOIN locations l ON il.location_id = l.id
+      LEFT JOIN suppliers s ON rmb.supplier_id = s.id
+      WHERE il.id = $1
+    `, [lotId]);
+  }
+
+  async listInventoryLots(filters?: { materialId?: string; warehouseId?: string; status?: string; supplierId?: string; skip?: number; limit?: number }) {
+    let query = `
+      SELECT 
+        il.*,
+        rmb.material_name,
+        rmb.batch_number,
+        rmb.expiry_date,
+        rm.unit_of_measure,
+        w.name as warehouse_name,
+        l.name as location_name,
+        s.name as supplier_name
+      FROM inventory_lots il
+      LEFT JOIN raw_material_batches rmb ON il.material_batch_id = rmb.id
+      LEFT JOIN raw_materials rm ON rmb.material_id = rm.id
+      LEFT JOIN warehouses w ON il.warehouse_id = w.id
+      LEFT JOIN locations l ON il.location_id = l.id
+      LEFT JOIN suppliers s ON rmb.supplier_id = s.id
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.materialId) {
+      query += ` AND rmb.material_id = $${paramIndex}`;
+      params.push(filters.materialId);
+      paramIndex++;
+    }
+
+    if (filters?.warehouseId) {
+      query += ` AND il.warehouse_id = $${paramIndex}`;
+      params.push(filters.warehouseId);
+      paramIndex++;
+    }
+
+    if (filters?.status) {
+      query += ` AND il.state = $${paramIndex}`;
+      params.push(filters.status);
+      paramIndex++;
+    }
+
+    if (filters?.supplierId) {
+      query += ` AND rmb.supplier_id = $${paramIndex}`;
+      params.push(filters.supplierId);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY il.created_at DESC';
+
+    if (filters?.limit) {
+      query += ` LIMIT $${paramIndex}`;
+      params.push(filters.limit);
+      paramIndex++;
+    }
+
+    if (filters?.skip) {
+      query += ` OFFSET $${paramIndex}`;
+      params.push(filters.skip);
+      paramIndex++;
+    }
+
+    return await db.query(query, params);
+  }
+
+  async updateLotState(lotId: string, newState: string, notes?: string) {
+    return await db.query(`
+      UPDATE inventory_lots 
+      SET state = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `, [newState, lotId]);
+  }
+
+  async getStockSummary() {
+    return await db.query(`
+      SELECT 
+        rm.name as material_name,
+        rm.unit_of_measure,
+        SUM(il.quantity_on_hand) as total_quantity,
+        SUM(il.quantity_reserved) as reserved_quantity,
+        SUM(il.quantity_on_hand - il.quantity_reserved) as available_quantity,
+        COUNT(DISTINCT il.id) as lot_count,
+        MIN(rmb.expiry_date) as earliest_expiry
+      FROM raw_materials rm
+      LEFT JOIN raw_material_batches rmb ON rm.id = rmb.material_id
+      LEFT JOIN inventory_lots il ON rmb.id = il.material_batch_id
+      WHERE il.state = 'APPROVED'
+      GROUP BY rm.id, rm.name, rm.unit_of_measure
+      ORDER BY rm.name
+    `);
+  }
 }
 
 export const inventoryService = new InventoryService();

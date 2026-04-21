@@ -531,6 +531,65 @@ export class TraceabilityService {
       ]
     );
   }
+
+  async getPurchaseOrder(id: string) {
+    return await db.query(`
+      SELECT 
+        po.*,
+        s.name as supplier_name,
+        s.supplier_code,
+        u.name as created_by_name
+      FROM purchase_orders po
+      LEFT JOIN suppliers s ON po.supplier_id = s.id
+      LEFT JOIN users u ON po.created_by = u.id
+      WHERE po.id = $1
+    `, [id]);
+  }
+
+  async listPurchaseOrders(filters?: { supplierId?: string; status?: string; skip?: number; limit?: number }) {
+    let query = `
+      SELECT 
+        po.*,
+        s.name as supplier_name,
+        s.supplier_code,
+        u.name as created_by_name
+      FROM purchase_orders po
+      LEFT JOIN suppliers s ON po.supplier_id = s.id
+      LEFT JOIN users u ON po.created_by = u.id
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.supplierId) {
+      query += ` AND po.supplier_id = $${paramIndex}`;
+      params.push(filters.supplierId);
+      paramIndex++;
+    }
+
+    if (filters?.status) {
+      query += ` AND po.status = $${paramIndex}`;
+      params.push(filters.status);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY po.created_at DESC';
+
+    if (filters?.limit) {
+      query += ` LIMIT $${paramIndex}`;
+      params.push(filters.limit);
+      paramIndex++;
+    }
+
+    if (filters?.skip) {
+      query += ` OFFSET $${paramIndex}`;
+      params.push(filters.skip);
+      paramIndex++;
+    }
+
+    return await db.query(query, params);
+  }
 }
 
 export const traceabilityService = new TraceabilityService();

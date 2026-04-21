@@ -113,7 +113,7 @@ export const listInventoryLots = asyncHandler(
     const { state, materialId, supplierId, skip = 0, limit = 20 } = req.query;
 
     const lots = await inventoryService.listInventoryLots({
-      state: state as string,
+      status: state as string,
       materialId: materialId as string,
       supplierId: supplierId as string,
       skip: parseInt(skip as string),

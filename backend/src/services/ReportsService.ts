@@ -327,6 +327,151 @@ export class ReportsService {
       GROUP BY bc.id
     `, [soId]);
   }
+
+  async getBatchTraceability(batchId: string) {
+    return await db.query(`
+      SELECT 
+        bt.*,
+        rmb.material_name,
+        rmb.batch_number as material_batch_number,
+        fgb.batch_number as fg_batch_number,
+        p.name as product_name
+      FROM batch_traceability bt
+      LEFT JOIN raw_material_batches rmb ON bt.material_batch_id = rmb.id
+      LEFT JOIN finished_goods_batches fgb ON bt.fg_batch_id = fgb.id
+      LEFT JOIN products p ON fgb.product_id = p.id
+      WHERE bt.fg_batch_id = $1 OR bt.material_batch_id = $1
+      ORDER BY bt.created_at DESC
+    `, [batchId]);
+  }
+
+  async getProductionEfficiencyReport(filters?: { startDate?: string; endDate?: string }) {
+    let query = `
+      SELECT 
+        pe.*,
+        bc.batch_card_number,
+        p.name as product_name,
+        fgb.batch_number as fg_batch_number,
+        fgb.quantity_produced,
+        fgb.state as fg_state
+      FROM production_execution pe
+      LEFT JOIN batch_cards bc ON pe.batch_card_id = bc.id
+      LEFT JOIN products p ON bc.product_id = p.id
+      LEFT JOIN finished_goods_batches fgb ON pe.id = fgb.production_execution_id
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.startDate) {
+      query += ` AND pe.created_at >= $${paramIndex}`;
+      params.push(filters.startDate);
+      paramIndex++;
+    }
+
+    if (filters?.endDate) {
+      query += ` AND pe.created_at <= $${paramIndex}`;
+      params.push(filters.endDate);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY pe.created_at DESC';
+
+    return await db.query(query, params);
+  }
+
+  async getInventoryReport() {
+    return await db.query(`
+      SELECT 
+        il.*,
+        rmb.material_name,
+        rmb.batch_number,
+        rm.unit_of_measure,
+        w.name as warehouse_name,
+        l.name as location_name
+      FROM inventory_lots il
+      LEFT JOIN raw_material_batches rmb ON il.material_batch_id = rmb.id
+      LEFT JOIN raw_materials rm ON rmb.material_id = rm.id
+      LEFT JOIN warehouses w ON il.warehouse_id = w.id
+      LEFT JOIN locations l ON il.location_id = l.id
+      ORDER BY il.created_at DESC
+    `);
+  }
+
+  async getSalesReport(filters?: { startDate?: string; endDate?: string }) {
+    let query = `
+      SELECT 
+        so.*,
+        c.name as customer_name,
+        c.customer_code,
+        p.name as product_name,
+        sod.quantity_ordered,
+        sod.unit_price,
+        sod.total_amount
+      FROM sales_orders so
+      LEFT JOIN customers c ON so.customer_id = c.id
+      LEFT JOIN sales_order_details sod ON so.id = sod.so_id
+      LEFT JOIN products p ON sod.product_id = p.id
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.startDate) {
+      query += ` AND so.order_date >= $${paramIndex}`;
+      params.push(filters.startDate);
+      paramIndex++;
+    }
+
+    if (filters?.endDate) {
+      query += ` AND so.order_date <= $${paramIndex}`;
+      params.push(filters.endDate);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY so.order_date DESC';
+
+    return await db.query(query, params);
+  }
+
+  async getPurchaseReport(filters?: { startDate?: string; endDate?: string }) {
+    let query = `
+      SELECT 
+        po.*,
+        s.name as supplier_name,
+        s.supplier_code,
+        rm.name as material_name,
+        pod.quantity_ordered,
+        pod.unit_price,
+        pod.total_amount
+      FROM purchase_orders po
+      LEFT JOIN suppliers s ON po.supplier_id = s.id
+      LEFT JOIN purchase_order_details pod ON po.id = pod.po_id
+      LEFT JOIN raw_materials rm ON pod.material_id = rm.id
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.startDate) {
+      query += ` AND po.order_date >= $${paramIndex}`;
+      params.push(filters.startDate);
+      paramIndex++;
+    }
+
+    if (filters?.endDate) {
+      query += ` AND po.order_date <= $${paramIndex}`;
+      params.push(filters.endDate);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY po.order_date DESC';
+
+    return await db.query(query, params);
+  }
 }
 
 export const reportsService = new ReportsService();

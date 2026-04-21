@@ -332,6 +332,47 @@ export class QualityControlService {
       ['QUARANTINE']
     );
   }
+
+  async getQCReport(filters?: { startDate?: string; endDate?: string; testType?: string }) {
+    let query = `
+      SELECT 
+        qtr.*,
+        rmb.material_name,
+        rmb.batch_number as material_batch_number,
+        fgb.batch_number as fg_batch_number,
+        p.name as product_name
+      FROM qc_test_results qtr
+      LEFT JOIN raw_material_batches rmb ON qtr.material_batch_id = rmb.id
+      LEFT JOIN finished_goods_batches fgb ON qtr.fg_batch_id = fgb.id
+      LEFT JOIN products p ON fgb.product_id = p.id
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.startDate) {
+      query += ` AND qtr.created_at >= $${paramIndex}`;
+      params.push(filters.startDate);
+      paramIndex++;
+    }
+
+    if (filters?.endDate) {
+      query += ` AND qtr.created_at <= $${paramIndex}`;
+      params.push(filters.endDate);
+      paramIndex++;
+    }
+
+    if (filters?.testType) {
+      query += ` AND qtr.test_type = $${paramIndex}`;
+      params.push(filters.testType);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY qtr.created_at DESC';
+
+    return await db.query(query, params);
+  }
 }
 
 export const qualityControlService = new QualityControlService();
