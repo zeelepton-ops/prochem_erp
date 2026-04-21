@@ -373,6 +373,124 @@ export class QualityControlService {
 
     return await db.query(query, params);
   }
+
+  async createQCTest(data: { materialBatchId?: string; fgBatchId?: string; testType: string; parameters: any; createdBy: string }) {
+    const result = await db.query(`
+      INSERT INTO qc_test_results (material_batch_id, fg_batch_id, test_type, parameters, created_by, status)
+      VALUES ($1, $2, $3, $4, $5, 'PENDING')
+      RETURNING *
+    `, [data.materialBatchId, data.fgBatchId, data.testType, JSON.stringify(data.parameters), data.createdBy]);
+    return result.rows[0];
+  }
+
+  async getQCTest(id: string) {
+    return await db.query(`
+      SELECT 
+        qtr.*,
+        rmb.batch_number as material_batch_number,
+        fgb.batch_number as fg_batch_number,
+        u.name as created_by_name
+      FROM qc_test_results qtr
+      LEFT JOIN raw_material_batches rmb ON qtr.material_batch_id = rmb.id
+      LEFT JOIN finished_goods_batches fgb ON qtr.fg_batch_id = fgb.id
+      LEFT JOIN users u ON qtr.created_by = u.id
+      WHERE qtr.id = $1
+    `, [id]);
+  }
+
+  async listQCTests(filters?: { status?: string; testType?: string }) {
+    let query = `
+      SELECT 
+        qtr.*,
+        rmb.batch_number as material_batch_number,
+        fgb.batch_number as fg_batch_number,
+        u.name as created_by_name
+      FROM qc_test_results qtr
+      LEFT JOIN raw_material_batches rmb ON qtr.material_batch_id = rmb.id
+      LEFT JOIN finished_goods_batches fgb ON qtr.fg_batch_id = fgb.id
+      LEFT JOIN users u ON qtr.created_by = u.id
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.status) {
+      query += ` AND qtr.status = $${paramIndex}`;
+      params.push(filters.status);
+      paramIndex++;
+    }
+
+    if (filters?.testType) {
+      query += ` AND qtr.test_type = $${paramIndex}`;
+      params.push(filters.testType);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY qtr.created_at DESC';
+
+    return await db.query(query, params);
+  }
+
+  async rejectQCTest(id: string, reason: string, rejectedBy: string) {
+    return await db.query(`
+      UPDATE qc_test_results 
+      SET status = 'REJECTED', rejection_reason = $1, rejected_by = $2, updated_at = NOW()
+      WHERE id = $3
+      RETURNING *
+    `, [reason, rejectedBy, id]);
+  }
+
+  async getIncomingQCGate(batchId: string) {
+    return await db.query(`
+      SELECT 
+        qcg.*,
+        rmb.batch_number,
+        rmb.material_name,
+        COUNT(DISTINCT qtr.id) as test_count,
+        SUM(CASE WHEN qtr.status = 'PASSED' THEN 1 ELSE 0 END) as passed_count
+      FROM qc_gates qcg
+      LEFT JOIN raw_material_batches rmb ON qcg.entity_id = rmb.id
+      LEFT JOIN qc_test_results qtr ON rmb.id = qtr.material_batch_id
+      WHERE qcg.gate_type = 'INCOMING' AND qcg.entity_id = $1
+      GROUP BY qcg.id, rmb.id
+    `, [batchId]);
+  }
+
+  async getOutgoingQCGate(batchId: string) {
+    return await db.query(`
+      SELECT 
+        qcg.*,
+        fgb.batch_number,
+        p.name as product_name,
+        COUNT(DISTINCT qtr.id) as test_count,
+        SUM(CASE WHEN qtr.status = 'PASSED' THEN 1 ELSE 0 END) as passed_count
+      FROM qc_gates qcg
+      LEFT JOIN finished_goods_batches fgb ON qcg.entity_id = fgb.id
+      LEFT JOIN products p ON fgb.product_id = p.id
+      LEFT JOIN qc_test_results qtr ON fgb.id = qtr.fg_batch_id
+      WHERE qcg.gate_type = 'OUTGOING' AND qcg.entity_id = $1
+      GROUP BY qcg.id, fgb.id, p.id
+    `, [batchId]);
+  }
+
+  async getQCPendingItems() {
+    return await db.query(`
+      SELECT 
+        qtr.*,
+        CASE 
+          WHEN qtr.material_batch_id IS NOT NULL THEN 'INCOMING'
+          WHEN qtr.fg_batch_id IS NOT NULL THEN 'OUTGOING'
+        END as gate_type,
+        rmb.batch_number as material_batch_number,
+        fgb.batch_number as fg_batch_number
+      FROM qc_test_results qtr
+      LEFT JOIN raw_material_batches rmb ON qtr.material_batch_id = rmb.id
+      LEFT JOIN finished_goods_batches fgb ON qtr.fg_batch_id = fgb.id
+      WHERE qtr.status IN ('PENDING', 'IN_PROGRESS')
+      ORDER BY qtr.created_at ASC
+    `);
+  }
 }
 
 export const qualityControlService = new QualityControlService();

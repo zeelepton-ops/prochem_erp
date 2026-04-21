@@ -1,4 +1,5 @@
 import { Request } from 'express';
+import { ParsedQs } from 'qs';
 
 export interface User {
   id: string;
@@ -23,7 +24,7 @@ export interface JwtPayload {
   exp?: number;
 }
 
-export interface RequestWithUser extends Request {
+export interface RequestWithUser extends Request<any, any, any, ParsedQs, Record<string, any>> {
   user?: JwtPayload;
 }
 
@@ -123,6 +124,11 @@ export interface Production {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ProductionModel extends Production {
+  product_name?: string;
+  created_by_name?: string;
 }
 
 export interface DeliveryNote {

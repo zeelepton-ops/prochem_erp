@@ -296,8 +296,8 @@ export class ProductionService {
   /**
    * Yield Analysis Report
    */
-  async getYieldAnalysis(startDate: Date, endDate: Date) {
-    return await db.query(`
+  async getYieldAnalysis(filters?: { startDate?: Date; endDate?: Date }) {
+    let query = `
       SELECT 
         DATE(bc.production_start) as production_date,
         COUNT(*) as batches_produced,
@@ -305,13 +305,30 @@ export class ProductionService {
         MIN(bc.yield_percent) as min_yield,
         MAX(bc.yield_percent) as max_yield,
         SUM(CASE WHEN bc.yield_percent < 95 THEN 1 ELSE 0 END) as below_target_count,
-        SUM(bc.actual_quantity) as total_quantity_produced,
+        SUM(bc.actual_quantity_produced) as total_quantity_produced,
         SUM(bc.scrap_quantity) as total_scrap
       FROM batch_cards bc
-      WHERE bc.production_start BETWEEN $1 AND $2
-      GROUP BY DATE(bc.production_start)
-      ORDER BY production_date DESC
-    `, [startDate, endDate]);
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.startDate) {
+      query += ` AND bc.production_start >= $${paramIndex}`;
+      params.push(filters.startDate);
+      paramIndex++;
+    }
+
+    if (filters?.endDate) {
+      query += ` AND bc.production_start <= $${paramIndex}`;
+      params.push(filters.endDate);
+      paramIndex++;
+    }
+
+    query += ' GROUP BY DATE(bc.production_start) ORDER BY production_date DESC';
+
+    return await db.query(query, params);
   }
 
   /**
@@ -336,6 +353,84 @@ export class ProductionService {
       WHERE bc.yield_percent < $1
       ORDER BY bc.yield_percent ASC
     `, [threshold]);
+  }
+
+  async createBatchCard(data: { productId: string; quantity: number; soId?: string; createdBy: string }) {
+    const result = await db.query(`
+      INSERT INTO batch_cards (product_id, planned_quantity, so_id, created_by, status)
+      VALUES ($1, $2, $3, $4, 'DRAFT')
+      RETURNING *
+    `, [data.productId, data.quantity, data.soId, data.createdBy]);
+    return result.rows[0];
+  }
+
+  async getBatchCard(id: string) {
+    return await db.query(`
+      SELECT 
+        bc.*,
+        p.name as product_name,
+        p.sku,
+        so.order_number as sales_order_number,
+        u.name as created_by_name
+      FROM batch_cards bc
+      LEFT JOIN products p ON bc.product_id = p.id
+      LEFT JOIN sales_orders so ON bc.so_id = so.id
+      LEFT JOIN users u ON bc.created_by = u.id
+      WHERE bc.id = $1
+    `, [id]);
+  }
+
+  async listBatchCards(filters?: { productId?: string; status?: string; soId?: string; salesOrderId?: string }) {
+    let query = `
+      SELECT 
+        bc.*,
+        p.name as product_name,
+        p.sku,
+        so.order_number as sales_order_number,
+        COUNT(DISTINCT bcf.material_id) as material_count
+      FROM batch_cards bc
+      LEFT JOIN products p ON bc.product_id = p.id
+      LEFT JOIN sales_orders so ON bc.so_id = so.id
+      LEFT JOIN batch_card_formulas bcf ON bc.id = bcf.batch_card_id
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.productId) {
+      query += ` AND bc.product_id = $${paramIndex}`;
+      params.push(filters.productId);
+      paramIndex++;
+    }
+
+    if (filters?.status) {
+      query += ` AND bc.status = $${paramIndex}`;
+      params.push(filters.status);
+      paramIndex++;
+    }
+
+    query += ' GROUP BY bc.id, p.id, so.id ORDER BY bc.created_at DESC';
+
+    return await db.query(query, params);
+  }
+
+  async getProductionLogs(batchCardId: string) {
+    return await db.query(`
+      SELECT 
+        plog.*,
+        il.lot_number,
+        rmb.batch_number,
+        rm.name as material_name,
+        u.name as logged_by_name
+      FROM production_logs plog
+      LEFT JOIN inventory_lots il ON plog.inventory_lot_id = il.id
+      LEFT JOIN raw_material_batches rmb ON il.material_batch_id = rmb.id
+      LEFT JOIN raw_materials rm ON rmb.material_id = rm.id
+      LEFT JOIN users u ON plog.logged_by = u.id
+      WHERE plog.batch_card_id = $1
+      ORDER BY plog.created_at DESC
+    `, [batchCardId]);
   }
 }
 

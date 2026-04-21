@@ -59,18 +59,12 @@ export const getProductTraceability = asyncHandler(
  */
 export const getSupplierQualityReport = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
-    const { supplierId } = req.params;
     const { startDate, endDate } = req.query;
 
-    if (!supplierId) {
-      throw new ValidationError('Supplier ID is required');
-    }
-
-    const report = await reportsService.getSupplierQualityReport({
-      supplierId,
-      startDate: startDate ? new Date(startDate as string) : undefined,
-      endDate: endDate ? new Date(endDate as string) : undefined,
-    });
+    const report = await reportsService.getSupplierQualityReport(
+      startDate ? new Date(startDate as string) : new Date(),
+      endDate ? new Date(endDate as string) : new Date()
+    );
 
     res.json({
       success: true,
@@ -88,9 +82,8 @@ export const getProductionEfficiencyReport = asyncHandler(
     const { productId, startDate, endDate } = req.query;
 
     const report = await reportsService.getProductionEfficiencyReport({
-      productId: productId as string,
-      startDate: startDate ? new Date(startDate as string) : undefined,
-      endDate: endDate ? new Date(endDate as string) : undefined,
+      startDate: startDate as string,
+      endDate: endDate as string,
     });
 
     res.json({
@@ -106,11 +99,7 @@ export const getProductionEfficiencyReport = asyncHandler(
  */
 export const getInventoryTurnoverReport = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
-    const { materialId } = req.query;
-
-    const report = await reportsService.getInventoryTurnoverReport(
-      materialId as string
-    );
+    const report = await reportsService.getInventoryTurnoverReport();
 
     res.json({
       success: true,
@@ -125,13 +114,7 @@ export const getInventoryTurnoverReport = asyncHandler(
  */
 export const getBatchConsumptionReport = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
-    const { batchCardId } = req.params;
-
-    if (!batchCardId) {
-      throw new ValidationError('Batch card ID is required');
-    }
-
-    const report = await reportsService.getBatchConsumptionReport(batchCardId);
+    const report = await reportsService.getBatchConsumptionReport();
 
     res.json({
       success: true,
@@ -170,8 +153,8 @@ export const getComplianceReport = asyncHandler(
     const { startDate, endDate } = req.query;
 
     const report = await reportsService.getComplianceReport({
-      startDate: startDate ? new Date(startDate as string) : undefined,
-      endDate: endDate ? new Date(endDate as string) : undefined,
+      startDate: startDate as string,
+      endDate: endDate as string,
     });
 
     res.json({
@@ -187,11 +170,7 @@ export const getComplianceReport = asyncHandler(
  */
 export const getExpiryRiskReport = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
-    const { daysFromNow = 30 } = req.query;
-
-    const report = await reportsService.getExpiryRiskReport(
-      parseInt(daysFromNow as string)
-    );
+    const report = await reportsService.getExpiryRiskReport();
 
     res.json({
       success: true,
@@ -207,18 +186,12 @@ export const getExpiryRiskReport = asyncHandler(
 export const getAuditTrail = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
     const { entityType, entityId } = req.params;
-    const { skip = 0, limit = 100 } = req.query;
 
     if (!entityType || !entityId) {
       throw new ValidationError('Entity type and ID are required');
     }
 
-    const trail = await reportsService.getAuditTrail({
-      entityType,
-      entityId,
-      skip: parseInt(skip as string),
-      limit: parseInt(limit as string),
-    });
+    const trail = await reportsService.getAuditTrail(entityId, entityType);
 
     res.json({
       success: true,

@@ -91,7 +91,7 @@ export const updatePurchaseOrderStatus = asyncHandler(
       throw new ValidationError('Status is required');
     }
 
-    const po = await traceabilityService.updatePurchaseOrderStatus(id, status, req.user?.userId || 'system');
+    const po = await traceabilityService.updatePurchaseOrderStatus(id, status);
 
     res.json({
       success: true,
@@ -175,12 +175,7 @@ export const getMaterialBatches = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
     const { materialId, status, skip = 0, limit = 20 } = req.query;
 
-    const batches = await traceabilityService.getMaterialBatches({
-      materialId: materialId as string,
-      status: status as string,
-      skip: parseInt(skip as string),
-      limit: parseInt(limit as string),
-    });
+    const batches = await traceabilityService.getMaterialBatches(materialId as string);
 
     res.json({
       success: true,

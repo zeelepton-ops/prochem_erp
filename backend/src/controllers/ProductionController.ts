@@ -8,6 +8,7 @@ import { RequestWithUser, ApiResponse } from '../types';
 import { asyncHandler } from '../middleware/errorHandler';
 import { ValidationError, NotFoundError } from '../utils/errors';
 import { ProductionService } from '../services/ProductionService';
+import { db } from '../config/database';
 
 const productionService = new ProductionService();
 
@@ -17,18 +18,15 @@ const productionService = new ProductionService();
  */
 export const createBatchCard = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
-    const { salesOrderId, productId, plannedQuantity, theoreticalYield, formula } = req.body;
+    const { productId, quantity } = req.body;
 
-    if (!salesOrderId || !productId || !plannedQuantity || !theoreticalYield || !formula) {
-      throw new ValidationError('Missing required fields: salesOrderId, productId, plannedQuantity, theoreticalYield, formula');
+    if (!productId || !quantity) {
+      throw new ValidationError('Missing required fields: productId, quantity');
     }
 
     const batchCard = await productionService.createBatchCard({
-      salesOrderId,
-      productId,
-      plannedQuantity,
-      theoreticalYield,
-      formula,
+      productId: productId as string,
+      quantity: parseInt(quantity as string),
       createdBy: req.user?.userId || 'system',
     });
 
@@ -66,14 +64,12 @@ export const getBatchCard = asyncHandler(
  */
 export const listBatchCards = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
-    const { status, productId, salesOrderId, skip = 0, limit = 20 } = req.query;
+    const { status, productId, salesOrderId } = req.query;
 
     const batchCards = await productionService.listBatchCards({
       status: status as string,
       productId: productId as string,
       salesOrderId: salesOrderId as string,
-      skip: parseInt(skip as string),
-      limit: parseInt(limit as string),
     });
 
     res.json({
@@ -91,10 +87,7 @@ export const releaseBatchCard = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
     const { id } = req.params;
 
-    const batchCard = await productionService.releaseBatchCard(
-      id,
-      req.user?.userId || 'system'
-    );
+    const batchCard = await productionService.releaseBatchCard(id);
 
     res.json({
       success: true,
@@ -146,6 +139,7 @@ export const logMaterialConsumption = asyncHandler(
       batchCardId,
       inventoryLotId,
       quantityConsumed,
+      timestamp: new Date(),
       loggedBy: req.user?.userId || 'system',
     });
 
@@ -163,16 +157,17 @@ export const logMaterialConsumption = asyncHandler(
  */
 export const completeProduction = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
-    const { batchCardId, actualQuantity, scrapQuantity } = req.body;
+    const { batchCardId, quantityProduced, scrapQuantity, comments } = req.body;
 
-    if (!batchCardId || actualQuantity === undefined || scrapQuantity === undefined) {
-      throw new ValidationError('Missing required fields: batchCardId, actualQuantity, scrapQuantity');
+    if (!batchCardId || quantityProduced === undefined || scrapQuantity === undefined) {
+      throw new ValidationError('Missing required fields: batchCardId, quantityProduced, scrapQuantity');
     }
 
     const batchCard = await productionService.completeProduction({
       batchCardId,
-      actualQuantity,
+      quantityProduced,
       scrapQuantity,
+      comments,
       completedBy: req.user?.userId || 'system',
     });
 
@@ -229,7 +224,6 @@ export const getYieldAnalysis = asyncHandler(
     const { productId, startDate, endDate } = req.query;
 
     const analysis = await productionService.getYieldAnalysis({
-      productId: productId as string,
       startDate: startDate ? new Date(startDate as string) : undefined,
       endDate: endDate ? new Date(endDate as string) : undefined,
     });
@@ -248,7 +242,9 @@ export const getProductionList = asyncHandler(
     const status = req.query.status as string | undefined;
 
     const offset = (page - 1) * limit;
-    const productions = await ProductionModel.findAll(limit, offset, status);
+    const productions = await productionService.listBatchCards({
+      status: status as string
+    });
 
     res.json({
       success: true,
@@ -258,7 +254,7 @@ export const getProductionList = asyncHandler(
         page,
         limit,
         totalPages: Math.ceil(productions.length / limit),
-      } as PaginatedResponse<any>,
+      },
     } as ApiResponse);
   }
 );
@@ -266,18 +262,15 @@ export const getProductionList = asyncHandler(
 export const updateProduction = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
     const { id } = req.params;
-    const { status, endDate } = req.body;
+    const { status } = req.body;
 
-    const production = await ProductionModel.findById(id);
+    const production = await productionService.getBatchCard(id);
 
-    if (!production) {
+    if (!production || !production.rows || production.rows.length === 0) {
       throw new NotFoundError('Production not found');
     }
 
-    const updated = await ProductionModel.update(id, {
-      status,
-      endDate: endDate ? new Date(endDate) : undefined,
-    });
+    const updated = await productionService.releaseBatchCard(id);
 
     res.json({
       success: true,
@@ -291,11 +284,17 @@ export const deleteProduction = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
     const { id } = req.params;
 
-    const deleted = await ProductionModel.delete(id);
+    const production = await productionService.getBatchCard(id);
 
-    if (!deleted) {
+    if (!production || !production.rows || production.rows.length === 0) {
       throw new NotFoundError('Production not found');
     }
+
+    // Perform soft delete or archive the batch card
+    const deleted = await db.query(
+      `UPDATE batch_cards SET status = 'ARCHIVED', updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [id]
+    );
 
     res.json({
       success: true,

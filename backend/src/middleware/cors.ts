@@ -1,8 +1,10 @@
 import cors from 'cors';
 import { config } from '../config/env';
 
+type CorsCallback = (err: Error | null, allow?: boolean) => void;
+
 export const corsOptions = {
-  origin: (origin: string | undefined, callback: cors.CorsCallback) => {
+  origin: (origin: string | undefined, callback: CorsCallback) => {
     if (!origin) {
       return callback(null, true);
     }

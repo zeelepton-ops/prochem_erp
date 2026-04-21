@@ -17,18 +17,18 @@ const qcService = new QualityControlService();
  */
 export const createQCTest = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
-    const { testType, materialBatchId, testParameters, results } = req.body;
+    const { testType, materialBatchId, fgBatchId, parameters } = req.body;
 
-    if (!testType || !testParameters) {
-      throw new ValidationError('Missing required fields: testType, testParameters');
+    if (!testType || !parameters) {
+      throw new ValidationError('Missing required fields: testType, parameters');
     }
 
     const test = await qcService.createQCTest({
-      testType,
       materialBatchId,
-      testParameters,
-      results,
-      testedBy: req.user?.userId || 'system',
+      fgBatchId,
+      testType,
+      parameters,
+      createdBy: req.user?.userId || 'system',
     });
 
     res.status(201).json({
@@ -65,14 +65,11 @@ export const getQCTest = asyncHandler(
  */
 export const listQCTests = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
-    const { testType, status, batchId, skip = 0, limit = 20 } = req.query;
+    const { testType, status } = req.query;
 
     const tests = await qcService.listQCTests({
       testType: testType as string,
       status: status as string,
-      batchId: batchId as string,
-      skip: parseInt(skip as string),
-      limit: parseInt(limit as string),
     });
 
     res.json({
@@ -89,13 +86,14 @@ export const listQCTests = asyncHandler(
 export const approveQCTest = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
     const { id } = req.params;
-    const { comments } = req.body;
+    const { comments, approvalDecision = 'APPROVED' } = req.body;
 
-    const test = await qcService.approveQCTest(
-      id,
-      req.user?.userId || 'system',
-      comments
-    );
+    const test = await qcService.approveQCTest({
+      qcTestId: id,
+      approvalDecision,
+      comments,
+      approvedBy: req.user?.userId || 'system',
+    });
 
     res.json({
       success: true,
@@ -112,7 +110,7 @@ export const approveQCTest = asyncHandler(
 export const rejectQCTest = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
     const { id } = req.params;
-    const { comments, reason } = req.body;
+    const { reason } = req.body;
 
     if (!reason) {
       throw new ValidationError('Rejection reason is required');
@@ -120,9 +118,8 @@ export const rejectQCTest = asyncHandler(
 
     const test = await qcService.rejectQCTest(
       id,
-      req.user?.userId || 'system',
       reason,
-      comments
+      req.user?.userId || 'system'
     );
 
     res.json({
@@ -181,9 +178,7 @@ export const getOutgoingQCGate = asyncHandler(
  */
 export const getQCPendingItems = asyncHandler(
   async (req: RequestWithUser, res: Response, next: NextFunction) => {
-    const { type = 'incoming' } = req.query;
-
-    const pendingItems = await qcService.getQCPendingItems(type as string);
+    const pendingItems = await qcService.getQCPendingItems();
 
     res.json({
       success: true,
@@ -201,8 +196,8 @@ export const getQCReport = asyncHandler(
     const { startDate, endDate, testType } = req.query;
 
     const report = await qcService.getQCReport({
-      startDate: startDate ? new Date(startDate as string) : undefined,
-      endDate: endDate ? new Date(endDate as string) : undefined,
+      startDate: startDate as string,
+      endDate: endDate as string,
       testType: testType as string,
     });
 

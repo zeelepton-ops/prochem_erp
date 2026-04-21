@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { RequestWithUser } from '../types';
 import { authenticate } from '../middleware/auth';
 import { db } from '../config/database';
 
@@ -36,7 +37,7 @@ router.get('/suppliers/:id', authenticate, async (req: Request, res: Response) =
 });
 
 // CREATE supplier
-router.post('/suppliers', authenticate, async (req: Request, res: Response) => {
+router.post('/suppliers', authenticate, async (req: RequestWithUser, res: Response) => {
   try {
     const { name, contactPerson, email, phone, address, city, state, country, postalCode, paymentTerms } = req.body;
     

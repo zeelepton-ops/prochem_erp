@@ -472,6 +472,176 @@ export class ReportsService {
 
     return await db.query(query, params);
   }
+
+  async getInventoryTurnoverReport() {
+    return await db.query(`
+      SELECT 
+        rm.name as material_name,
+        COUNT(DISTINCT rmb.id) as batch_count,
+        SUM(il.quantity_on_hand) as current_stock,
+        AVG(EXTRACT(DAY FROM NOW() - rmb.received_date)) as avg_days_in_stock,
+        SUM(CASE WHEN rmb.expiry_date <= NOW() + INTERVAL '30 days' THEN il.quantity_on_hand ELSE 0 END) as expiring_soon
+      FROM raw_materials rm
+      LEFT JOIN raw_material_batches rmb ON rm.id = rmb.material_id
+      LEFT JOIN inventory_lots il ON rmb.id = il.material_batch_id
+      WHERE il.state = 'APPROVED'
+      GROUP BY rm.id, rm.name
+      ORDER BY avg_days_in_stock DESC
+    `);
+  }
+
+  async getBatchConsumptionReport() {
+    return await db.query(`
+      SELECT 
+        bc.batch_card_number,
+        p.name as product_name,
+        bc.planned_quantity,
+        bc.actual_quantity_produced,
+        bc.scrap_quantity,
+        ROUND(((bc.actual_quantity_produced / NULLIF(bc.planned_quantity, 0)) * 100)::numeric, 2) as yield_percent,
+        COUNT(DISTINCT plog.id) as production_log_count,
+        SUM(plog.quantity_consumed) as total_consumed
+      FROM batch_cards bc
+      LEFT JOIN products p ON bc.product_id = p.id
+      LEFT JOIN production_logs plog ON bc.id = plog.batch_card_id
+      GROUP BY bc.id, p.id
+      ORDER BY bc.created_at DESC
+    `);
+  }
+
+  async getMaterialGenealogyReport(materialId: string) {
+    return await db.query(`
+      WITH RECURSIVE genealogy AS (
+        SELECT 
+          rmb.id,
+          rmb.batch_number,
+          rmb.material_id,
+          rm.name as material_name,
+          rmb.supplier_id,
+          s.name as supplier_name,
+          rmb.received_date,
+          1 as level
+        FROM raw_material_batches rmb
+        LEFT JOIN raw_materials rm ON rmb.material_id = rm.id
+        LEFT JOIN suppliers s ON rmb.supplier_id = s.id
+        WHERE rmb.material_id = $1
+        
+        UNION ALL
+        
+        SELECT 
+          fgb.id,
+          fgb.batch_number,
+          NULL,
+          p.name,
+          NULL,
+          NULL,
+          fgb.production_date,
+          g.level + 1
+        FROM genealogy g
+        JOIN batch_cards bc ON g.id::text = bc.id::text
+        JOIN finished_goods_batches fgb ON bc.id = fgb.batch_card_id
+        LEFT JOIN products p ON fgb.product_id = p.id
+        WHERE g.level < 5
+      )
+      SELECT * FROM genealogy
+      ORDER BY level, received_at DESC
+    `, [materialId]);
+  }
+
+  async getComplianceReport(filters?: { startDate?: string; endDate?: string }) {
+    let query = `
+      SELECT 
+        COUNT(DISTINCT qtr.id) as total_tests,
+        SUM(CASE WHEN qtr.status = 'PASSED' THEN 1 ELSE 0 END) as passed_tests,
+        SUM(CASE WHEN qtr.status = 'REJECTED' THEN 1 ELSE 0 END) as rejected_tests,
+        ROUND((SUM(CASE WHEN qtr.status = 'PASSED' THEN 1 ELSE 0 END)::numeric / COUNT(DISTINCT qtr.id)) * 100, 2) as pass_rate,
+        qtr.test_type,
+        COUNT(DISTINCT rmb.supplier_id) as supplier_count
+      FROM qc_test_results qtr
+      LEFT JOIN raw_material_batches rmb ON qtr.material_batch_id = rmb.id
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.startDate) {
+      query += ` AND qtr.created_at >= $${paramIndex}`;
+      params.push(filters.startDate);
+      paramIndex++;
+    }
+
+    if (filters?.endDate) {
+      query += ` AND qtr.created_at <= $${paramIndex}`;
+      params.push(filters.endDate);
+      paramIndex++;
+    }
+
+    query += ' GROUP BY qtr.test_type';
+
+    return await db.query(query, params);
+  }
+
+  async getExpiryRiskReport() {
+    return await db.query(`
+      SELECT 
+        rm.name as material_name,
+        rmb.batch_number,
+        rmb.expiry_date,
+        EXTRACT(DAY FROM rmb.expiry_date - NOW()) as days_until_expiry,
+        SUM(il.quantity_on_hand) as quantity_at_risk,
+        CASE 
+          WHEN rmb.expiry_date <= NOW() THEN 'EXPIRED'
+          WHEN rmb.expiry_date <= NOW() + INTERVAL '7 days' THEN 'CRITICAL'
+          WHEN rmb.expiry_date <= NOW() + INTERVAL '30 days' THEN 'HIGH'
+          WHEN rmb.expiry_date <= NOW() + INTERVAL '60 days' THEN 'MEDIUM'
+          ELSE 'LOW'
+        END as risk_level
+      FROM raw_material_batches rmb
+      LEFT JOIN raw_materials rm ON rmb.material_id = rm.id
+      LEFT JOIN inventory_lots il ON rmb.id = il.material_batch_id
+      WHERE rmb.status IN ('APPROVED', 'ALLOCATED')
+      GROUP BY rmb.id, rm.id
+      ORDER BY rmb.expiry_date ASC
+    `);
+  }
+
+  async getAuditTrail(entityId: string, entityType?: string) {
+    let query = `
+      SELECT 
+        al.*,
+        u.name as user_name,
+        u.email
+      FROM audit_logs al
+      LEFT JOIN users u ON al.user_id = u.id
+      WHERE al.entity_id = $1
+    `;
+    
+    const params: any[] = [entityId];
+
+    if (entityType) {
+      query += ` AND al.entity_type = $2`;
+      params.push(entityType);
+    }
+
+    query += ' ORDER BY al.created_at DESC';
+
+    return await db.query(query, params);
+  }
+
+  async getDashboardMetrics() {
+    return await db.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM purchase_orders WHERE status IN ('submitted', 'confirmed')) as pending_pos,
+        (SELECT COUNT(*) FROM sales_orders WHERE status IN ('submitted', 'confirmed')) as pending_sos,
+        (SELECT COUNT(*) FROM raw_material_batches WHERE status = 'QUARANTINE') as quarantined_materials,
+        (SELECT SUM(quantity_on_hand) FROM inventory_lots WHERE state = 'APPROVED') as total_inventory,
+        (SELECT COUNT(*) FROM qc_test_results WHERE status = 'PENDING') as pending_qc_tests,
+        (SELECT COUNT(*) FROM batch_cards WHERE status = 'IN_PROGRESS') as active_productions,
+        (SELECT SUM(quantity_on_hand) FROM inventory_lots WHERE expiry_date <= NOW() + INTERVAL '30 days') as expiring_soon,
+        (SELECT COUNT(DISTINCT supplier_id) FROM purchase_orders WHERE status != 'cancelled') as active_suppliers
+    `);
+  }
 }
 
 export const reportsService = new ReportsService();

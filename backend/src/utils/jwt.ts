@@ -6,8 +6,8 @@ const secret: string = config.jwt.secret;
 
 export const generateToken = (payload: JwtPayload): string => {
   return jwt.sign(payload, secret, {
-    expiresIn: config.jwt.expiry,
-  });
+    expiresIn: config.jwt.expiry as string,
+  } as any);
 };
 
 export const verifyToken = (token: string): JwtPayload => {
