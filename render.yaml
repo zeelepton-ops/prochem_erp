@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: prochem-erp-backend
+    name: bmm-backend
     env: docker
     region: oregon
     branch: main
@@ -11,9 +11,24 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 5000
-
-databases:
-  - name: prochem-erp-db
-    plan: starter
-    databaseName: prochem_erp
+        value: 10000
+      - key: DB_HOST
+        value: db.glfywcqebopgvpglxiud.supabase.co
+      - key: DB_PORT
+        value: 5432
+      - key: DB_NAME
+        value: postgres
+      - key: DB_USER
+        value: postgres
+      - key: DB_PASSWORD
+        value: prochemdbms
+      - key: DB_SSL
+        value: require
+      - key: JWT_SECRET
+        value: your_jwt_secret_key_change_in_production
+      - key: JWT_EXPIRY
+        value: 7d
+      - key: FRONTEND_URL
+        value: https://erp.prochemtechnology.com
+      - key: LOG_LEVEL
+        value: info
