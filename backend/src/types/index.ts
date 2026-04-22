@@ -24,8 +24,11 @@ export interface JwtPayload {
   exp?: number;
 }
 
-export interface RequestWithUser extends Request<any, any, any, ParsedQs, Record<string, any>> {
+export interface RequestWithUser extends Request {
   user?: JwtPayload;
+  body: any;
+  query: ParsedQs;
+  params: any;
 }
 
 export interface ApiResponse<T = any> {
