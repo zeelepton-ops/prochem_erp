@@ -22,7 +22,8 @@ import masterDataRoutes from './routes/masterDataRoutes';
 
 const app: Express = express();
 
-// Middleware
+// Middleware Configuration
+// Setup CORS, helmet, morgan, and body parsing
 app.use(helmet());
 app.use(corsMiddleware);
 app.use(morgan('combined'));
