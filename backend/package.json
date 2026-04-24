@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Building Materials Management System - Backend API",
   "main": "dist/server.js",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",

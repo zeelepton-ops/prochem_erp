@@ -1,0 +1,6 @@
+﻿Fix tsconfig for Node.js types with node16 module resolution
+
+- Remove DOM lib (not needed for Node.js backend)
+- Keep ES2020 lib for modern JavaScript
+- Add explicit 'types: ["node"]' to ensure @types/node is loaded
+- Fixes TS2591 'Cannot find name process' errors
