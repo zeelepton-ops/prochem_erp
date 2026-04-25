@@ -33,7 +33,7 @@ export default function Dashboard() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {/* Purchase Orders */}
           <Link href="/dashboard/purchase-orders">
-            <div className="rounded-lg bg-white p-6 shadow hover:shadow-lg cursor-pointer">
+            <div className="rounded-lg bg-white p-6 shadow hover:shadow-lg transition-shadow cursor-pointer">
               <h3 className="mb-2 text-lg font-semibold text-gray-900">
                 Purchase Orders
               </h3>
@@ -43,7 +43,7 @@ export default function Dashboard() {
 
           {/* Sales Orders */}
           <Link href="/dashboard/sales-orders">
-            <div className="rounded-lg bg-white p-6 shadow hover:shadow-lg cursor-pointer">
+            <div className="rounded-lg bg-white p-6 shadow hover:shadow-lg transition-shadow cursor-pointer">
               <h3 className="mb-2 text-lg font-semibold text-gray-900">
                 Sales Orders
               </h3>
@@ -51,19 +51,19 @@ export default function Dashboard() {
             </div>
           </Link>
 
-          {/* Material Tests */}
-          <Link href="/dashboard/material-tests">
-            <div className="rounded-lg bg-white p-6 shadow hover:shadow-lg cursor-pointer">
+          {/* Inventory */}
+          <Link href="/dashboard/inventory">
+            <div className="rounded-lg bg-white p-6 shadow hover:shadow-lg transition-shadow cursor-pointer">
               <h3 className="mb-2 text-lg font-semibold text-gray-900">
-                Material Tests
+                Inventory
               </h3>
-              <p className="text-gray-600">Quality control testing</p>
+              <p className="text-gray-600">View materials & products</p>
             </div>
           </Link>
 
           {/* Production */}
           <Link href="/dashboard/production">
-            <div className="rounded-lg bg-white p-6 shadow hover:shadow-lg cursor-pointer">
+            <div className="rounded-lg bg-white p-6 shadow hover:shadow-lg transition-shadow cursor-pointer">
               <h3 className="mb-2 text-lg font-semibold text-gray-900">
                 Production
               </h3>
