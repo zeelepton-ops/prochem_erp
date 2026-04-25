@@ -1,0 +1,407 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String?
+  password  String
+  role      UserRole   @default(OPERATOR)
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Relations
+  purchaseOrders  PurchaseOrder[]
+  salesOrders     SalesOrder[]
+  materialTests   MaterialTest[]
+  productions     Production[]
+  deliveryNotes   DeliveryNote[]
+  auditLogs       AuditLog[]
+
+  @@index([email])
+  @@index([role])
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  OPERATOR
+  VIEWER
+}
+
+// Supplier model
+model Supplier {
+  id        String     @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  pincode   String?
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+
+  @@index([name])
+  @@index([email])
+}
+
+// Customer model
+model Customer {
+  id        String     @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  pincode   String?
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  salesOrders SalesOrder[]
+  deliveryNotes DeliveryNote[]
+
+  @@index([name])
+  @@index([email])
+}
+
+// Raw material model
+model RawMaterial {
+  id        String     @id @default(cuid())
+  code      String     @unique
+  name      String
+  description String?
+  unit      String
+  price     Float
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  purchaseOrderItems PurchaseOrderItem[]
+  inventory         Inventory?
+  materialTests     MaterialTest[]
+
+  @@index([code])
+  @@index([name])
+}
+
+// Product model
+model Product {
+  id        String     @id @default(cuid())
+  code      String     @unique
+  name      String
+  description String?
+  unit      String
+  price     Float
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  salesOrderItems   SalesOrderItem[]
+  inventory         Inventory?
+  productions       Production[]
+  batchCards        BatchCard[]
+
+  @@index([code])
+  @@index([name])
+}
+
+// Purchase Order model
+model PurchaseOrder {
+  id        String     @id @default(cuid())
+  orderNo   String     @unique
+  supplierId String
+  supplier  Supplier   @relation(fields: [supplierId], references: [id])
+  orderDate DateTime   @default(now())
+  dueDate   DateTime
+  status    OrderStatus @default(PENDING)
+  totalAmount Float
+  createdBy String
+  createdByUser User   @relation(fields: [createdBy], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  items     PurchaseOrderItem[]
+  receivedGoods ReceivedGoods[]
+
+  @@index([supplierId])
+  @@index([orderNo])
+  @@index([status])
+  @@index([createdBy])
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  RECEIVED
+  CANCELLED
+}
+
+// Purchase Order Item
+model PurchaseOrderItem {
+  id        String     @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  materialId String
+  material  RawMaterial @relation(fields: [materialId], references: [id])
+  quantity  Float
+  unitPrice Float
+  totalPrice Float
+  receivedQty Float @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([purchaseOrderId])
+  @@index([materialId])
+}
+
+// Sales Order model
+model SalesOrder {
+  id        String     @id @default(cuid())
+  orderNo   String     @unique
+  customerId String
+  customer  Customer   @relation(fields: [customerId], references: [id])
+  orderDate DateTime   @default(now())
+  dueDate   DateTime
+  status    OrderStatus @default(PENDING)
+  totalAmount Float
+  createdBy String
+  createdByUser User   @relation(fields: [createdBy], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  items     SalesOrderItem[]
+  deliveryNotes DeliveryNote[]
+
+  @@index([customerId])
+  @@index([orderNo])
+  @@index([status])
+  @@index([createdBy])
+}
+
+// Sales Order Item
+model SalesOrderItem {
+  id        String     @id @default(cuid())
+  salesOrderId String
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product   @relation(fields: [productId], references: [id])
+  quantity  Float
+  unitPrice Float
+  totalPrice Float
+  deliveredQty Float @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([salesOrderId])
+  @@index([productId])
+}
+
+// Material Test model
+model MaterialTest {
+  id        String     @id @default(cuid())
+  testNo    String     @unique
+  materialId String
+  material  RawMaterial @relation(fields: [materialId], references: [id])
+  testDate  DateTime   @default(now())
+  result    TestResult @default(PENDING)
+  remarks   String?
+  testedBy  String
+  testedByUser User   @relation(fields: [testedBy], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([materialId])
+  @@index([testNo])
+  @@index([result])
+  @@index([testedBy])
+}
+
+enum TestResult {
+  PENDING
+  PASSED
+  FAILED
+}
+
+// Batch Card model
+model BatchCard {
+  id        String     @id @default(cuid())
+  batchNo   String     @unique
+  productId String
+  product   Product   @relation(fields: [productId], references: [id])
+  quantity  Float
+  issuedDate DateTime  @default(now())
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  productions Production[]
+
+  @@index([productId])
+  @@index([batchNo])
+}
+
+// Production model
+model Production {
+  id        String     @id @default(cuid())
+  productionNo String @unique
+  batchCardId String
+  batchCard BatchCard @relation(fields: [batchCardId], references: [id])
+  productId String
+  product   Product   @relation(fields: [productId], references: [id])
+  quantity  Float
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+  status    ProductionStatus @default(IN_PROGRESS)
+  createdBy String
+  createdByUser User   @relation(fields: [createdBy], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([productId])
+  @@index([productionNo])
+  @@index([status])
+  @@index([batchCardId])
+  @@index([createdBy])
+}
+
+enum ProductionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// Received Goods model
+model ReceivedGoods {
+  id        String     @id @default(cuid())
+  receiptNo String     @unique
+  purchaseOrderId String
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  receivedDate DateTime  @default(now())
+  quantity  Float
+  notes     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([purchaseOrderId])
+  @@index([receiptNo])
+}
+
+// Inventory model
+model Inventory {
+  id        String     @id @default(cuid())
+  materialId String?   @unique
+  material  RawMaterial? @relation(fields: [materialId], references: [id])
+  productId String?   @unique
+  product   Product?  @relation(fields: [productId], references: [id])
+  quantity  Float     @default(0)
+  reorderLevel Float   @default(0)
+  lastUpdated DateTime @updatedAt
+
+  @@index([materialId])
+  @@index([productId])
+}
+
+// Store Issue Voucher model
+model StoreIssueVoucher {
+  id        String     @id @default(cuid())
+  voucherNo String     @unique
+  issueDate DateTime   @default(now())
+  quantity  Float
+  remarks   String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([voucherNo])
+}
+
+// Delivery Note model
+model DeliveryNote {
+  id        String     @id @default(cuid())
+  noteNo    String     @unique
+  salesOrderId String
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id])
+  customerId String
+  customer  Customer   @relation(fields: [customerId], references: [id])
+  deliveryDate DateTime @default(now())
+  status    DeliveryStatus @default(PENDING)
+  createdBy String
+  createdByUser User   @relation(fields: [createdBy], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  invoices  Invoice[]
+
+  @@index([salesOrderId])
+  @@index([customerId])
+  @@index([noteNo])
+  @@index([status])
+  @@index([createdBy])
+}
+
+enum DeliveryStatus {
+  PENDING
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+// Invoice model
+model Invoice {
+  id        String     @id @default(cuid())
+  invoiceNo String     @unique
+  deliveryNoteId String
+  deliveryNote DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  invoiceDate DateTime  @default(now())
+  amount    Float
+  taxAmount Float      @default(0)
+  totalAmount Float
+  status    InvoiceStatus @default(PENDING)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([deliveryNoteId])
+  @@index([invoiceNo])
+  @@index([status])
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+// Audit Log model
+model AuditLog {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String
+  oldValues Json?
+  newValues Json?
+  createdAt DateTime   @default(now())
+
+  @@index([userId])
+  @@index([entity])
+  @@index([entityId])
+  @@index([createdAt])
+}
