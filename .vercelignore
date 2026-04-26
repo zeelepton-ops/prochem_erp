@@ -1,9 +1,0 @@
-frontend
-backend
-database
-.github
-docs
-*.md
-.env*
-node_modules
-.git
