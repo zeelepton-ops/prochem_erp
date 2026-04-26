@@ -4,6 +4,7 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nextjs",
+  "root": ".",
   "env": {
     "DATABASE_URL": "@database_url",
     "NEXTAUTH_URL": "https://$VERCEL_URL",
