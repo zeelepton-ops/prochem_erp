@@ -44,7 +44,7 @@ enum UserRole {
 model Supplier {
   id        String     @id @default(cuid())
   name      String
-  email     String
+  email     String     @unique
   phone     String?
   address   String?
   city      String?
@@ -64,7 +64,7 @@ model Supplier {
 model Customer {
   id        String     @id @default(cuid())
   name      String
-  email     String
+  email     String     @unique
   phone     String?
   address   String?
   city      String?
