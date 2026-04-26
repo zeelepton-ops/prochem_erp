@@ -1,5 +1,6 @@
 'use client'
 
+// Build: 2026-04-26
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 
