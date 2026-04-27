@@ -1,8 +1,0 @@
-.env
-.env.local
-.env.*
-dist/
-node_modules/
-.git/
-.gitignore
-package-lock.json
