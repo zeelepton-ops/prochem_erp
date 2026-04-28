@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth'
 import { prisma } from '@/lib/prisma'
-import { v4 as uuidv4 } from 'uuid'
 
 export async function GET(request: NextRequest) {
   try {

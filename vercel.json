@@ -9,7 +9,7 @@
     "SHADOW_DATABASE_URL": "@shadow_database_url",
     "NEXTAUTH_URL": "https://$VERCEL_URL",
     "NEXTAUTH_SECRET": "@nextauth_secret",
-    "NEXT_PUBLIC_API_URL": "@next_public_api_url",
     "JWT_SECRET": "@jwt_secret"
   }
 }
+
